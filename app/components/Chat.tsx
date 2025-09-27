@@ -1,6 +1,5 @@
 import React from "react";
 import { ChatMessage } from "../types/chat";
-import Image from "next/image";
 import Message from "./Messages/Message";
 
 interface ChatProps {
