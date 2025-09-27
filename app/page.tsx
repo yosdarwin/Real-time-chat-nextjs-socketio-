@@ -1,103 +1,79 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { io } from "socket.io-client";
+import Signup from "./components/Signup";
+import Input from "./components/Input";
+import Chat from "./components/Chat";
+import { ChatMessage } from "./types/chat";
+
+const socket = io("http://localhost:3001");
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState<
+    { name: string; isTyping: boolean }[]
+  >([]);
+  const user = useRef<{ name: string; id: string }>({ name: "", id: "" });
+  useEffect(() => {
+    console.log("Socket connecting...");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+    socket.on("connect", () => {
+      console.log("Socket connected with ID:", socket.id);
+    });
+
+    socket.on("chat_message", (msg) => {
+      setChat((prev) => [...prev, msg]);
+    });
+
+    socket.on("add_user", (user) => {
+      setChat((prev) => [
+        ...prev,
+        {
+          content: `${user.name} joined the chat`,
+          user,
+          type: "server",
+        },
+      ]);
+    });
+    socket.on("is_typing", (data) => {
+      if (!data.name) return;
+      setIsTyping((prev) => {
+        const filtered = prev.filter((u) => u.name !== data.name);
+        return data.isTyping 
+          ? [...filtered, { name: data.name, isTyping: true }]
+          : filtered;
+      });
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("chat_message");
+      socket.off("add_user");
+      socket.off("is_typing");
+    };
+  }, []);
+
+  const setUser = (name: string, id: string) => {
+    user.current = { name, id };
+  };
+
+  return (
+    <div className="h-screen max-h-screen max-w-screen mx-auto md:container md:p-20 md:pt-4">
+      {user.current.name ? (
+        <>
+          <Chat chat={chat} user={user.current} isTyping={isTyping} />
+          <Input setChat={setChat} user={user.current} socket={socket} />
+        </>
+      ) : (
+        <Signup
+          input={input}
+          setInput={setInput}
+          setUser={setUser}
+          socket={socket}
+        />
+      )}
     </div>
   );
 }
